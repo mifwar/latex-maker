@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TinyMCE with MathJax</title>
+    <title>TinyMCE with MathJax (Bidirectional)</title>
     
     <!-- TinyMCE CDN -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tinymce/6.7.0/tinymce.min.js"></script>
@@ -13,7 +13,7 @@
 
     <style>
         .container {
-            max-width: 800px;
+            max-width: 1000px;
             margin: 20px auto;
             padding: 20px;
         }
@@ -32,12 +32,75 @@
         .mce-content-body .math::before {
             content: attr(data-latex);
         }
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+            z-index: 1000;
+        }
+        .modal-content {
+            position: relative;
+            background-color: #fff;
+            margin: 5% auto;
+            padding: 20px;
+            width: 80%;
+            max-width: 800px;
+            border-radius: 5px;
+        }
+        .close {
+            position: absolute;
+            right: 10px;
+            top: 5px;
+            font-size: 24px;
+            cursor: pointer;
+        }
+        .html-input {
+            width: 100%;
+            height: 200px;
+            margin: 10px 0;
+            font-family: monospace;
+            padding: 10px;
+        }
+        .button-container {
+            margin-top: 10px;
+            text-align: right;
+        }
+        .custom-button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-left: 10px;
+        }
+        .custom-button:hover {
+            background-color: #45a049;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <textarea id="editor"></textarea>
         <div class="preview" id="preview"></div>
+    </div>
+
+    <!-- Modal for HTML input -->
+    <div id="htmlModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal()">&times;</span>
+            <h2>Parse HTML with Math Elements</h2>
+            <p>Paste your HTML content below:</p>
+            <textarea id="htmlInput" class="html-input"></textarea>
+            <div class="button-container">
+                <button class="custom-button" onclick="closeModal()">Cancel</button>
+                <button class="custom-button" onclick="parseAndInsertHTML()">Insert</button>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -53,25 +116,45 @@
             skipStartupTypeset: true
         });
 
-        // Function to refresh MathJax rendering
         function refreshMathJax() {
             if (typeof MathJax !== 'undefined') {
                 MathJax.Hub.Queue(['Typeset', MathJax.Hub]);
             }
         }
 
-        // Function to convert LaTeX to display format
         function formatLatex(latex) {
             return latex.replace(/\\/g, '\\\\');
+        }
+
+        // Modal functions
+        function showModal() {
+            document.getElementById('htmlModal').style.display = 'block';
+            document.getElementById('htmlInput').value = '';
+        }
+
+        function closeModal() {
+            document.getElementById('htmlModal').style.display = 'none';
+        }
+
+        function parseAndInsertHTML() {
+            const htmlContent = document.getElementById('htmlInput').value;
+            if (htmlContent.trim()) {
+                tinymce.activeEditor.setContent(htmlContent);
+                setTimeout(() => {
+                    refreshMathJax();
+                    updatePreview(tinymce.activeEditor);
+                }, 100);
+            }
+            closeModal();
         }
 
         tinymce.init({
             selector: '#editor',
             plugins: 'code preview',
-            toolbar: 'undo redo | formatselect | bold italic | alignleft aligncenter alignright | code preview | insertmath',
+            toolbar: 'undo redo | formatselect | bold italic | alignleft aligncenter alignright | code preview | insertmath parsehtml',
             height: 400,
             setup: function(editor) {
-                // Add custom button for math insertion
+                // Add Insert Math button
                 editor.ui.registry.addButton('insertmath', {
                     text: 'Insert Math',
                     onAction: function() {
@@ -81,7 +164,6 @@
                             const mathElement = `<samp class="math mceNonEditable" data-latex="${formattedLatex}">$${latex}$</samp>`;
                             editor.insertContent(mathElement);
                             
-                            // Refresh MathJax in both editor and preview
                             setTimeout(() => {
                                 refreshMathJax();
                                 updatePreview(editor);
@@ -90,21 +172,25 @@
                     }
                 });
 
-                // Handle editor content change
+                // Add Parse HTML button
+                editor.ui.registry.addButton('parsehtml', {
+                    text: 'Parse HTML',
+                    onAction: function() {
+                        showModal();
+                    }
+                });
+
                 editor.on('Change', function() {
                     updatePreview(editor);
                 });
 
-                // After editor initialization
                 editor.on('init', function() {
-                    // Add MathJax rendering to the editor iframe
                     const editorHead = editor.getDoc().getElementsByTagName('head')[0];
                     const mathjaxScript = editor.getDoc().createElement('script');
                     mathjaxScript.src = 'https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.7/MathJax.js?config=TeX-AMS_HTML';
                     editorHead.appendChild(mathjaxScript);
 
                     mathjaxScript.onload = function() {
-                        // Configure MathJax in the editor iframe
                         editor.getWin().MathJax.Hub.Config({
                             tex2jax: {
                                 inlineMath: [['$','$'], ['\\(','\\)']],
@@ -115,7 +201,6 @@
                             messageStyle: 'none'
                         });
                         
-                        // Set initial content after MathJax is loaded
                         setInitialContent(editor);
                     };
                 });
@@ -145,7 +230,15 @@
             updatePreview(editor);
         }
 
-        // Initial setup after page load
+        // Close modal when clicking outside
+        window.onclick = function(event) {
+            const modal = document.getElementById('htmlModal');
+            if (event.target === modal) {
+                closeModal();
+            }
+        }
+
+        // Initial setup
         window.addEventListener('load', function() {
             if (tinymce.activeEditor) {
                 setInitialContent(tinymce.activeEditor);
