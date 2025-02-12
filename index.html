@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TinyMCE with MathJax</title>
+    
+    <!-- TinyMCE CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tinymce/6.7.0/tinymce.min.js"></script>
+    
+    <!-- MathJax CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.7/MathJax.js?config=TeX-AMS_HTML"></script>
+
+    <style>
+        .container {
+            max-width: 800px;
+            margin: 20px auto;
+            padding: 20px;
+        }
+        .preview {
+            margin-top: 20px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .math {
+            background-color: #f0f0f0;
+            padding: 2px 4px;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        .mce-content-body .math::before {
+            content: attr(data-latex);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <textarea id="editor"></textarea>
+        <div class="preview" id="preview"></div>
+    </div>
+
+    <script>
+        // Configure MathJax
+        MathJax.Hub.Config({
+            tex2jax: {
+                inlineMath: [['$','$'], ['\\(','\\)']],
+                processClass: 'math',
+                ignoreClass: 'no-math',
+                processElements: 'samp'
+            },
+            messageStyle: 'none',
+            skipStartupTypeset: true
+        });
+
+        // Function to refresh MathJax rendering
+        function refreshMathJax() {
+            if (typeof MathJax !== 'undefined') {
+                MathJax.Hub.Queue(['Typeset', MathJax.Hub]);
+            }
+        }
+
+        // Function to convert LaTeX to display format
+        function formatLatex(latex) {
+            return latex.replace(/\\/g, '\\\\');
+        }
+
+        tinymce.init({
+            selector: '#editor',
+            plugins: 'code preview',
+            toolbar: 'undo redo | formatselect | bold italic | alignleft aligncenter alignright | code preview | insertmath',
+            height: 400,
+            setup: function(editor) {
+                // Add custom button for math insertion
+                editor.ui.registry.addButton('insertmath', {
+                    text: 'Insert Math',
+                    onAction: function() {
+                        const latex = prompt('Enter LaTeX formula:', '');
+                        if (latex) {
+                            const formattedLatex = formatLatex(latex);
+                            const mathElement = `<samp class="math mceNonEditable" data-latex="${formattedLatex}">$${latex}$</samp>`;
+                            editor.insertContent(mathElement);
+                            
+                            // Refresh MathJax in both editor and preview
+                            setTimeout(() => {
+                                refreshMathJax();
+                                updatePreview(editor);
+                            }, 100);
+                        }
+                    }
+                });
+
+                // Handle editor content change
+                editor.on('Change', function() {
+                    updatePreview(editor);
+                });
+
+                // After editor initialization
+                editor.on('init', function() {
+                    // Add MathJax rendering to the editor iframe
+                    const editorHead = editor.getDoc().getElementsByTagName('head')[0];
+                    const mathjaxScript = editor.getDoc().createElement('script');
+                    mathjaxScript.src = 'https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.7/MathJax.js?config=TeX-AMS_HTML';
+                    editorHead.appendChild(mathjaxScript);
+
+                    mathjaxScript.onload = function() {
+                        // Configure MathJax in the editor iframe
+                        editor.getWin().MathJax.Hub.Config({
+                            tex2jax: {
+                                inlineMath: [['$','$'], ['\\(','\\)']],
+                                processClass: 'math',
+                                ignoreClass: 'no-math',
+                                processElements: 'samp'
+                            },
+                            messageStyle: 'none'
+                        });
+                        
+                        // Set initial content after MathJax is loaded
+                        setInitialContent(editor);
+                    };
+                });
+            },
+            content_style: `
+                .math { 
+                    background-color: #f0f0f0;
+                    padding: 2px 4px;
+                    border-radius: 3px;
+                    cursor: pointer;
+                }
+            `,
+            invalid_elements: '',
+            extended_valid_elements: 'samp[class|data-latex]'
+        });
+
+        function updatePreview(editor) {
+            const content = editor.getContent();
+            document.getElementById('preview').innerHTML = content;
+            refreshMathJax();
+        }
+
+        function setInitialContent(editor) {
+            const initialContent = `<p>Jika grafik <samp class="math mceNonEditable" data-latex="y=x^{2}-\\left(2^{p-3}+2^{3-p}\\right) x+1">$y=x^{2}-\\left(2^{p-3}+2^{3-p}\\right) x+1$</samp> menyinggung sumbu <samp class="math mceNonEditable" data-latex="x">$x$</samp>, maka nilai <samp class="math mceNonEditable" data-latex="p">$p$</samp> yang memenuhi adalah ....</p>`;
+            
+            editor.setContent(initialContent);
+            updatePreview(editor);
+        }
+
+        // Initial setup after page load
+        window.addEventListener('load', function() {
+            if (tinymce.activeEditor) {
+                setInitialContent(tinymce.activeEditor);
+            }
+        });
+    </script>
+</body>
+</html>
