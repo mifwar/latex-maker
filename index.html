@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TinyMCE with MathJax (Bidirectional)</title>
+    <title>TinyMCE with MathJax (Improved Parser)</title>
     
     <!-- TinyMCE CDN -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tinymce/6.7.0/tinymce.min.js"></script>
@@ -126,6 +126,24 @@
             return latex.replace(/\\/g, '\\\\');
         }
 
+        // Function to process HTML content and add dollar signs if needed
+        function processHTMLContent(html) {
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = html;
+            
+            const mathElements = tempDiv.getElementsByClassName('math');
+            Array.from(mathElements).forEach(element => {
+                const latex = element.getAttribute('data-latex').trim();
+                
+                // Check if the content already has dollar signs
+                if (!element.textContent.includes('$')) {
+                    element.textContent = `$${latex}$`;
+                }
+            });
+            
+            return tempDiv.innerHTML;
+        }
+
         // Modal functions
         function showModal() {
             document.getElementById('htmlModal').style.display = 'block';
@@ -139,7 +157,8 @@
         function parseAndInsertHTML() {
             const htmlContent = document.getElementById('htmlInput').value;
             if (htmlContent.trim()) {
-                tinymce.activeEditor.setContent(htmlContent);
+                const processedContent = processHTMLContent(htmlContent);
+                tinymce.activeEditor.setContent(processedContent);
                 setTimeout(() => {
                     refreshMathJax();
                     updatePreview(tinymce.activeEditor);
